@@ -1,5 +1,16 @@
-const fs = require("fs");
+const fs = require("fs").promises;
 const path = require("path");
+
+async function calculateSalesTotal(salesFiles) {
+  let salesTotal = 0;
+
+  for (file of salesFiles) {
+    const data = JSON.parse(await fs.readFile(file));
+    salesTotal += data.total;
+  }
+
+  return salesTotal;
+}
 
 async function findSalesFiles(folderName) {
   // this array will hold sales files as they are found
@@ -7,17 +18,16 @@ async function findSalesFiles(folderName) {
 
   async function findFiles(folderName) {
     // read all the items in the current folder
-    const items = await fs.readdirSync(folderName, { withFileTypes: true });
-    // console.log(items, "<== items");
+    const items = await fs.readdir(folderName, { withFileTypes: true });
 
     // iterate over each found item
     for (item of items) {
-      // if the item is a directory, it will need to be searched for files
+      // if the item is a directory, it will need to be searched
       if (item.isDirectory()) {
-        // search this directory for files (this is recursion!)
-        await findFiles(`${folderName}/${item.name}`);
+        // call this method recursively, appending the folder name to make a new path
+        await findFiles(path.join(folderName, item.name));
       } else {
-        // Make sure the discovered file is a sales.json file
+        // Make sure the discovered file is a .json file
         if (path.extname(item.name) === ".json") {
           // store the file path in the salesFiles array
           salesFiles.push(path.join(folderName, item.name));
@@ -26,22 +36,33 @@ async function findSalesFiles(folderName) {
     }
   }
 
-  // find the sales files
   await findFiles(folderName);
 
-  // return the array of found file paths
   return salesFiles;
 }
 
 async function main() {
-  const salesFiles = await findSalesFiles("stores");
-  console.log(salesFiles);
+  const salesDir = path.join(__dirname, "stores");
+  const salesTotalsDir = path.join(__dirname, "salesTotals");
+
+  // create the salesTotal directory if it doesn't exist
+  try {
+    await fs.mkdir(salesTotalsDir);
+  } catch {
+    console.log(`${salesTotalsDir} already exists.`);
+  }
+
+  // find paths to all the sales files
+  const salesFiles = await findSalesFiles(salesDir);
+
+  const salesTotal = await calculateSalesTotal(salesFiles);
+  // write the total to the "totals.txt" file
+  await fs.writeFile(
+    path.join(salesTotalsDir, "totals.txt"),
+    `${salesTotal}\r\n`,
+    { flag: "a" }
+  );
+  console.log(`Wrote sales totals to ${salesTotalsDir}`);
 }
 
 main();
-
-async function findPath() {
-  const salesDir = path.join(__dirname, "stores");
-  const salesFiles = await findSalesFiles(salesDir);
-  console.log(salesFiles);
-}
